@@ -12,17 +12,20 @@ ERR_DICT = {''}
 IMPLEMENTED = ["parens"]
 ACCEPTABLE_TYPES = [".mp3", ".flac", ".jpg", ".png", ".nfo"]
 MUSIC_TYPES = ACCEPTABLE_TYPES[:2]
-EXCEPTIONS = []
+EXCEPTIONS = [".\\bin", ".\.git"]
+here = os.path.dirname(os.path.abspath(__file__))
 
 def init():
 	global EXCEPTIONS
 	if not os.path.exists("bin"):
 		os.makedirs("bin")
 	if not os.path.exists("exceptions.txt"):
-		expt = open("exceptions.txt", "wb+")
-		new = []
-		pickle.dump(new, expt)
-	expt = open("exceptions.txt", "rb")
+		expt = open(os.path.join(here, "exceptions.txt"), "wb+")
+		new = ["./bin", "./.git"]
+		pickle.dump(EXCEPTIONS, expt)
+		expt.close()
+		print("dumped")
+	expt = open(os.path.join(here, "exceptions.txt"), "rb")
 	EXCEPTIONS = pickle.load(expt)
 	
 
@@ -64,13 +67,12 @@ def dirDepth(dirName):
 		d[c] += 1
 	return d['\\'] - 1
 
-def fix(name, err):
-	if (err == "parens"):
-		path = "./" + name
-		name = remove_parens(name)
-		newPath = "./" + name
-		os.rename(path, newPath)
-		return name
+def fixParens(name):
+	path = "./" + name
+	name = remove_parens(name)
+	newPath = "./" + name
+	os.rename(path, newPath)
+	return name
 
 
 def find_errors(name):
@@ -94,94 +96,114 @@ def find_errors(name):
 		return errors
 
 
-init()
-expt = open("exceptions.txt", "wb+")
+if __name__ == '__main__':
+	init()
 #This section extracts subfolders from folders: Each folder in a library should be a collection of mp3 files with no subdirectories.
-done = False
-while (not done):
-	done = True
-	text = getInput("Do you want to extract subdirectories to the main directory?\n", OPTIONS)
-	if text in OPTIONS[:4]:
-		for subd in os.walk("."):
-			title = subd[0]
-			if title in EXCEPTIONS:
-				continue
-			text = getInput(subd[0][2:] + "\n is a deep folder. Do you want to extract it?", OPTIONS)
-			if text in OPTIONS[4:]:
-				name = subd[0]
-				depth = dirDepth(name)
-				newName = name
-				path = name
-				if (depth > 0):
-					done = False
-					newName = name[2:].replace('\\', ' ')
-					index = path.rfind('\\') + 1
-					newPath = path[:index] + newName
-					os.rename(path, newPath)
-					finalPath = ".\\" + newName
-					shutil.move(newPath, finalPath)
-			else:
-				continue
-	else:
+	done = False
+	while (not done):
 		done = True
-#This section iterates through each folder, and checks the name correctness
-i = 0
-for subd in os.walk("."):
-	title = subd[0]
-	#os walk will always check the "." directory before any of it's subd's, so I'm skipping that iteration here.
-	if (i == 0):
-		i += 1
-		continue
-	if title in EXCEPTIONS:
-		continue
-	if os.sep in subd[0][2:]:
-		continue
-
-	name = subd[0][2:]
-	print("\n\n" + name)
-	fixIt = True
-	notMusic = False
-	hasMusic = False
-	for file in subd[2]:
-		if os.path.splitext(file)[1] in MUSIC_TYPES:
-			hasMusic = True
-	if hasMusic == False:
-		text = getInput("This doesn't look like a music folder. Do you want to move it?\n", OPTIONS)
+		text = getInput("\nDo you want to extract subdirectories to the main directory?\n", OPTIONS)
 		if text in OPTIONS[:4]:
-			shutil.move(subd[0], "./bin")
-			print("Okay, it was moved.")
-			fixIt = False
-	
-	if not fixIt:
-		continue
-
-	errors = find_errors(name)
-
-	if (not errors):
-		print("good name!\n")
-	else:
-		print("\nSeems like a bad name. Reasons:")
-		for err in errors:
-			print(ERR_MSGS[err])
-		text = getInput("Would you like to fix it? (y/n)\n", OPTIONS)
-		if text in OPTIONS[:4]:
-			done = True
-			for err in errors:
-				if err in IMPLEMENTED:
-					name = fix(name, err)
+			i = 0
+			for parent in os.walk("."):
+				if (i == 0):
+					i += 1
+					continue
+				title = parent[0]
+				if title in EXCEPTIONS:
+					continue
+				if os.sep in parent[0][2:]:
+					continue
+				deep = False
+				for subd in os.walk(title):
+					if dirDepth(subd[0]) > 0 and deep == False:
+						text = getInput("\n" + title[2:] + " is a deep folder. Do you want to extract it?\n", OPTIONS)
+						if text in OPTIONS[:4]:
+							deep = True
+							continue
+						else: 
+							break
+				if deep == True:
+					name = parent[0]
+					depth = dirDepth(name)
+					newName = name
+					path = name
+					if (depth > 0):
+						done = False
+						newName = name[2:].replace('\\', ' ')
+						index = path.rfind('\\') + 1
+						newPath = path[:index] + newName
+						os.rename(path, newPath)
+						finalPath = ".\\" + newName
+						shutil.move(newPath, finalPath)
 				else:
-					done = False
-			if (not done):
-				text = getInput("This name can't be fixed automatically. Do you want to input a new name? (y/n)\n", OPTIONS)
-				if text in OPTIONS[:4]:
-					rename(name)
-				else:
-					print("Okay.")
-			print("Done.")
+					continue
 		else:
-			text = getInput("\nOkay. Do you want to add this to the exceptions? (y/n)\n", OPTIONS)
+			done = True
+	#This section iterates through each folder, and checks the name correctness
+	i = 0
+	for subd in os.walk("."):
+		title = subd[0]
+		#os walk will always check the "." directory before any of it's subd's, so I'm skipping that iteration here.
+		if (i == 0):
+			i += 1
+			continue
+		if title in EXCEPTIONS:
+			continue
+		if os.sep in subd[0][2:]:
+			continue
+
+		name = subd[0][2:]
+		print("\n\n" + name)
+		fixIt = True
+		notMusic = False
+		hasMusic = False
+		for file in subd[2]:
+			if os.path.splitext(file)[1] in MUSIC_TYPES:
+				hasMusic = True
+		if hasMusic == False:
+			text = getInput("This doesn't look like a music folder. Do you want to move it?\n", OPTIONS)
 			if text in OPTIONS[:4]:
-				EXCEPTIONS.append(title)
-				pickle.dump(EXCEPTIONS, expt)
+				shutil.move(subd[0], "./bin")
+				print("Okay, it was moved.")
+				fixIt = False
+			else:
+				text = getInput("\nOkay. Do you want to add this to the exceptions? (y/n)\n", OPTIONS)
+				if text in OPTIONS[:4]:
+					EXCEPTIONS.append(title)
+					pickle.dump(EXCEPTIONS, expt)
+					print("Okay.")
+					continue
+
+	
+		if not fixIt:
+			continue
+
+		errors = find_errors(name)
+
+		if (not errors):
+			print("good name!\n")
+		else:
+			print("\nSeems like a bad name. Reasons:")
+			for err in errors:
+				print(ERR_MSGS[err])
+			if 'parens' in errors:
+				text = getInput("Parentheses and brackets can be removed automatically. Do you want to remove them?\n", OPTIONS)
+				if text in OPTIONS[:4]:
+					newName = fixParens(name)
+					print("Okay, they were removed. The new name is " + newName +"\n")
+					name = newName
+					text = getInput("Want to do anything else with this name? (y/n)\n", OPTIONS)
+					if text in OPTIONS[4:]:
+						print("Okay.")
+						continue
+			text = getInput("Would you like to input a new name? (y/n)\n", OPTIONS)
+			if text in OPTIONS[:4]:
+				rename(name)
 				print("Okay.")
-pickle.dump(EXCEPTIONS, expt)
+			else:
+				text = getInput("\nOkay. Do you want to add this to the exceptions? (y/n)\n", OPTIONS)
+				if text in OPTIONS[:4]:
+					EXCEPTIONS.append(title)
+					pickle.dump(EXCEPTIONS, expt)
+					print("Okay.")
