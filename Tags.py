@@ -2,32 +2,39 @@ import os
 import collections
 import shutil
 import re
-import mutagen
+from mutagen.mp3 import *
 import pickle
+from os.path import *
 
 PARENS = ['(', '[', ')', ']']
 ERR_MSGS = {'fmt' : "The name isn't formatted correctly.", 'parens' : "The name contains parenthesis and/or brackets.", "notAN" : "The name contains non-alphanumeric characters."}
 OPTIONS = ["y", "yes", "Y", "Yes", "no", "N", "n", "No"]
 ERR_DICT = {''}
 IMPLEMENTED = ["parens"]
-ACCEPTABLE_TYPES = [".mp3", ".flac", ".jpg", ".png", ".nfo"]
+ACCEPTABLE_TYPES = [".mp3", ".flac"]
 MUSIC_TYPES = ACCEPTABLE_TYPES[:2]
-EXCEPTIONS = [".\\bin", ".\.git"]
-here = os.path.dirname(os.path.abspath(__file__))
+EXCEPTIONS = ["", "_junk", ".git", "Tags.py", "Commands.py", "tktest.py", "AdjBox.py", "exceptions.txt", "__pycache__", "__TAGS__"]
+ID3DICT = {'TALB' : 'Album', 'TPE1' : 'Artist', 'TIT2' : 'Title', 'TRCK' : 'Track', 'TDRC' : 'Year', 'TCON' : 'Genre'}
+
+
+CLEAR_EXCEPTIONS = True
+
+here = "."
 
 def init():
 	global EXCEPTIONS
-	if not os.path.exists("bin"):
-		os.makedirs("bin")
+	os.chdir("C:/Music")
+	if not os.path.isdir("junk"):
+		os.makedirs("junk")
+	if CLEAR_EXCEPTIONS:
+		os.remove("exceptions.txt")
 	if not os.path.exists("exceptions.txt"):
 		expt = open(os.path.join(here, "exceptions.txt"), "wb+")
 		new = ["./bin", "./.git"]
 		pickle.dump(EXCEPTIONS, expt)
 		expt.close()
-		print("dumped")
 	expt = open(os.path.join(here, "exceptions.txt"), "rb")
 	EXCEPTIONS = pickle.load(expt)
-	
 
 def getInput(prompt, options):
 	text = input(prompt)
@@ -95,66 +102,73 @@ def find_errors(name):
 				break
 		return errors
 
+def list_contents(folder):
+	"""This scans through the entire directory, and lists all folders
+	 and files in the root directory."""
+	retlist = []
+	for file in os.listdir(folder):
+		if file not in EXCEPTIONS:
+			retlist.append(file)
+	return retlist
+def isMusic(folder):
+	nest = []
+	for file in os.listdir(folder):
+		if file == folder:
+			continue
+		elif isdir(file):
+			nest.append(file)
+		elif any([file.endswith(typ) for typ in ACCEPTABLE_TYPES]):
+			return True
+	if any([isMusic(item) for item in nest]):
+		return True
+	return False
 
-if __name__ == '__main__':
+#Sorts through all folders in the main folder via a stack. 
+#If there are no folders in the root, return.
+def remove_junk():
+	to_move = []
+	done = False
+	for item in os.listdir(here):
+		if isdir(item) and (not isMusic(item)):
+			to_move.append(item)
+		if isfile(item):
+			to_move.append(item)
+	filtered = [x for x in to_move if x not in EXCEPTIONS]
+	prev = ["./" + x for x in filtered]
+	dest = ["./_junk/" + x for x in filtered]
+	for i in range(0, len(prev)):
+		shutil.move(prev[i], dest[i])
+
+def get_tags(file, directory):
+	pathbase = os.getcwd() + directory[1:] + os.sep + file
+	data = MP3(pathbase)
+	tags = {}
+	for key in ID3DICT.keys():
+		if data.get(key):
+			tags[ID3DICT[key]] = data.get(key).text[0]
+	return tags
+	#print(to_move
+
+"""if __name__ == '__main__':
 	init()
 #This section extracts subfolders from folders: Each folder in a library should be a collection of mp3 files with no subdirectories.
-	done = False
-	while (not done):
-		done = True
-		text = getInput("\nDo you want to extract subdirectories to the main directory?\n", OPTIONS)
-		if text in OPTIONS[:4]:
-			i = 0
-			for parent in os.walk("."):
-				if (i == 0):
-					i += 1
-					continue
-				title = parent[0]
-				if title in EXCEPTIONS:
-					continue
-				if os.sep in parent[0][2:]:
-					continue
-				deep = False
-				for subd in os.walk(title):
-					if dirDepth(subd[0]) > 0 and deep == False:
-						text = getInput("\n" + title[2:] + " is a deep folder. Do you want to extract it?\n", OPTIONS)
-						if text in OPTIONS[:4]:
-							deep = True
-							continue
-						else: 
-							break
-				if deep == True:
-					name = parent[0]
-					depth = dirDepth(name)
-					newName = name
-					path = name
-					if (depth > 0):
-						done = False
-						newName = name[2:].replace('\\', ' ')
-						index = path.rfind('\\') + 1
-						newPath = path[:index] + newName
-						os.rename(path, newPath)
-						finalPath = ".\\" + newName
-						shutil.move(newPath, finalPath)
-				else:
-					continue
-		else:
-			done = True
+
 	#This section iterates through each folder, and checks the name correctness
 	i = 0
 	for subd in os.walk("."):
 		title = subd[0]
+		name = str(subd[0][2:])
+
 		#os walk will always check the "." directory before any of it's subd's, so I'm skipping that iteration here.
 		if (i == 0):
 			i += 1
 			continue
 		if title in EXCEPTIONS:
 			continue
-		if os.sep in subd[0][2:]:
+		if os.sep in name:
 			continue
 
-		name = subd[0][2:]
-		print("\n\n" + name)
+		print(repr(name))
 		fixIt = True
 		notMusic = False
 		hasMusic = False
@@ -204,6 +218,8 @@ if __name__ == '__main__':
 			else:
 				text = getInput("\nOkay. Do you want to add this to the exceptions? (y/n)\n", OPTIONS)
 				if text in OPTIONS[:4]:
+					expt = open(os.path.join(here, "exceptions.txt"), "wb")
 					EXCEPTIONS.append(title)
 					pickle.dump(EXCEPTIONS, expt)
 					print("Okay.")
+"""					
