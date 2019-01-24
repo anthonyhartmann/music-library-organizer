@@ -3,6 +3,7 @@ import collections
 import shutil
 import re
 from mutagen.mp3 import *
+import mutagen.id3
 import pickle
 from os.path import *
 
@@ -147,6 +148,21 @@ def get_tags(file, directory):
 		if data.get(key):
 			tags[ID3DICT[key]] = data.get(key).text[0]
 	return tags
+
+#tags is a dictionary of {TYPE : ITEM} where type is the plain name of an ID3 tag type, and item is this item's tag.
+def save_tags(file, directory, tags):
+	pathbase = os.getcwd() + directory[1:] + os.sep + file
+	data = MP3(pathbase)
+	if not data.get('TIT2'):
+		print("ERROR: SONG HAS NO TITLE TAG?")
+		return
+	enc = data.get('TIT2').encoding
+	testdict = {}
+	for key in tags.keys():
+		id3key = [x for x in ID3DICT.keys() if ID3DICT[x] == key][0]
+		data[id3key] = getattr(mutagen.id3, id3key)(encoding = enc, text=[tags[key]])
+	data.save(pathbase)
+	return
 	#print(to_move
 
 """if __name__ == '__main__':
